@@ -54,35 +54,26 @@ def hired_per_quarter():
 
 @app.route('/upload_csv', methods=['POST'])
 def upload_csv():
-    # Get the blob filename and table name from the request
-    blob_name = request.args.get('file_name')
-    table_name = request.args.get('table')
+    if 'file' not in request.files:
+        return 'No file part', 400
 
-    if not blob_name or not table_name:
-        return "Missing required parameters: file_name and table", 400
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file', 400
 
-    try:
-        # Connect to Azure Storage
-        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-        blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
-        
-        # Download the file as a stream
-        csv_data = blob_client.download_blob().content_as_text()
-        
-        # Read into Pandas DataFrame
-        df = pd.read_csv(pd.io.StringIO(csv_data))
-
-        # Validate and insert data
-        valid_tables = {"departments", "jobs", "employees"}
-        if table_name in valid_tables:
-            df.to_sql(table_name, con=db.engine, if_exists='append', index=False)  # Now using db.engine
+    if file:
+        df = pd.read_csv(file)
+        table_name = request.args.get('table')
+        if table_name == 'departments':
+            df.to_sql('departments', con=db.engine, if_exists='replace', index=False)
+        elif table_name == 'jobs':
+            df.to_sql('jobs', con=db.engine, if_exists='replace', index=False)
+        elif table_name == 'employees':
+            df.to_sql('employees', con=db.engine, if_exists='replace', index=False)
         else:
-            return "Invalid table name", 400
+            return 'Invalid table name', 400
 
-        return "File successfully uploaded and appended to the table", 200
-
-    except Exception as e:
-        return f"Error: {str(e)}", 500
+        return 'File successfully uploaded', 200
 
 @app.route('/insert_batch', methods=['POST'])
 def insert_batch():
